@@ -27,10 +27,13 @@ import io.vertx.core.impl.ContextInternal;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.net.NetClient;
+import io.vertx.core.net.impl.NetClientImpl;
 import io.vertx.proton.ProtonClient;
 import io.vertx.proton.ProtonClientOptions;
 import io.vertx.proton.ProtonConnection;
 import io.vertx.proton.ProtonTransportOptions;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
@@ -40,9 +43,20 @@ public class ProtonClientImpl implements ProtonClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(ProtonClientImpl.class);
   private final Vertx vertx;
+  private volatile SSLContext suppliedSslContext;
 
   public ProtonClientImpl(Vertx vertx) {
     this.vertx = vertx;
+  }
+
+  /**
+   * Must be called before calling connect()
+   * @deprecated Internal use only
+   */
+  @Deprecated
+  public void setSuppliedSSLContext(SSLContext suppliedSSLContext) {
+    assert this.suppliedSslContext == null : "suppliedSSLContext already set";
+    this.suppliedSslContext = suppliedSSLContext;
   }
 
   public void connect(String host, int port, Handler<AsyncResult<ProtonConnection>> handler) {
@@ -62,6 +76,9 @@ public class ProtonClientImpl implements ProtonClient {
   public void connect(ProtonClientOptions options, String host, int port, String username, String password,
                       Handler<AsyncResult<ProtonConnection>> handler) {
     final NetClient netClient = vertx.createNetClient(options);
+    if (suppliedSslContext != null && netClient instanceof NetClientImpl) {
+      ((NetClientImpl) netClient).setSuppliedSSLContext(suppliedSslContext);
+    }
     connectNetClient(netClient, host, port, username, password, new ConnectCompletionHandler(handler, netClient), options);
   }
 
